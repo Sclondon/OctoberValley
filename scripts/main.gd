@@ -110,8 +110,12 @@ func _ready() -> void:
 	menus.retried.connect(_retry)
 	menus.quit_to_title.connect(leave_coop)
 	menus.coop_opened.connect(func() -> void: menus.coop())
-	menus.coop_created.connect(func() -> void: net.create(hero))
-	menus.coop_joined.connect(func(code: String) -> void: net.join(code, hero))
+	menus.coop_created.connect(func() -> void:
+		menus.notice("Making a room...")
+		net.create(hero))
+	menus.coop_joined.connect(func(code: String) -> void:
+		menus.notice("Joining room %s..." % code)
+		net.join(code, hero))
 	menus.coop_hero_picked.connect(func(id: String) -> void: net.pick_hero(id))
 	menus.coop_started.connect(func() -> void: net.start_game())
 

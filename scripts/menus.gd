@@ -96,20 +96,29 @@ func upgrades(heading: String, ids: Array[String], player: Node) -> void:
 func coop(note := "") -> void:
 	_open(0.6)
 	_text("CO-OP", 64, EDGE)
-	_text(note if note != "" else "Up to four heroes, one horde. Make a room and share its code.", 22)
+	if note != "":
+		_text(note, 28, Color("ff6a5a"))
+	_text("Up to four heroes, one horde. Make a room and share its code.", 22)
 	_button("MAKE A ROOM", func() -> void: coop_created.emit()).grab_focus.call_deferred()
 	var row := _row()
 	var entry := LineEdit.new()
 	entry.placeholder_text = "CODE"
 	entry.max_length = 4
 	entry.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	entry.custom_minimum_size = Vector2(160, 0)
-	entry.add_theme_font_override("font", FONT)
-	entry.add_theme_font_size_override("font_size", 30)
+	entry.custom_minimum_size = Vector2(200, 0)
+	entry.add_theme_font_override("font", ThemeDB.fallback_font)
+	entry.add_theme_font_size_override("font_size", 34)
+	entry.text_changed.connect(func(typed: String) -> void:
+		var caret := entry.caret_column
+		entry.text = typed.to_upper()
+		entry.caret_column = caret)
 	row.add_child(entry)
 	var join := func() -> void:
-		if entry.text.strip_edges().length() == 4:
-			coop_joined.emit(entry.text.strip_edges().to_upper())
+		var code := entry.text.strip_edges().to_upper()
+		if code.length() == 4:
+			coop_joined.emit(code)
+		else:
+			coop("A room code is four letters or numbers.")
 	entry.text_submitted.connect(func(_text: String) -> void: join.call())
 	_button("JOIN", join, 30, row).custom_minimum_size = Vector2(160, 0)
 	_button("BACK", func() -> void: quit_to_title.emit())
@@ -118,8 +127,11 @@ func coop(note := "") -> void:
 ## The room, before the game starts. `players` is [{slot, name, hero, away}].
 func lobby(code: String, players: Array, my_seat: int, leader: bool) -> void:
 	_open(0.6)
-	_text("ROOM  %s" % code, 64, EDGE)
+	_text("ROOM CODE", 40, EDGE)
+	var plain := _text("  ".join(code.split("")), 84)
+	plain.add_theme_font_override("font", ThemeDB.fallback_font)
 	_text("Friends join with this code from CO-OP on the title screen.", 22)
+	_text("Keep this window in view: a hidden browser tab stops the game.", 18)
 	for entry: Dictionary in players:
 		var seat := int(entry["slot"])
 		var who: String = Db.HEROES[str(entry["hero"])]["name"] if Db.HEROES.has(str(entry["hero"])) else "?"
@@ -134,10 +146,11 @@ func lobby(code: String, players: Array, my_seat: int, leader: bool) -> void:
 	_button("LEAVE", func() -> void: quit_to_title.emit())
 
 
-## A message with nothing to press (waiting for the host).
+## A message while waiting on the server or the host, with a way out.
 func notice(text: String) -> void:
 	_open(0.6)
 	_text(text, 36)
+	_button("BACK", func() -> void: quit_to_title.emit()).grab_focus.call_deferred()
 
 
 ## `frozen`: the game is stopped behind this (it is not in co-op).
