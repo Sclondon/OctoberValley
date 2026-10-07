@@ -14,11 +14,11 @@ signal enemy_killed(enemy: Enemy)
 signal boss_spawned(boss: Boss)
 signal boss_defeated
 
-const MAX_ALIVE := 90
+const MAX_ALIVE := 100
 ## Each hero after the first adds this share of the credits, and this many more enemies.
 const EXTRA_HERO_CREDITS := 0.6
 const EXTRA_HERO_ALIVE := 20
-const CREDITS_PER_SECOND := 1.7
+const CREDITS_PER_SECOND := 1.3
 const WAVE_GAP := Vector2(2.0, 4.0)
 const PACK_SIZE := Vector2i(3, 8)
 const RING := Vector2(16.0, 30.0)
@@ -27,7 +27,7 @@ const PACK_SPREAD := 3.0
 const LEASH := 75.0
 ## Bosses feel the difficulty less than the horde does, or late summons drag on.
 const BOSS_HP_SCALE := 0.75
-const HEART_CHANCE := 0.03
+const HEART_CHANCE := 0.015
 const ELITE_CHEST_CHANCE := 0.25
 ## Used when the level has no theme (the test yard): everything, a little at a time.
 const DEFAULT_ROSTER := [["zombie", 0.0], ["pumpkin", 0.0], ["skull", 20.0], ["ghost", 40.0],
@@ -45,7 +45,7 @@ var stage_index := 0
 var roster: Array = DEFAULT_ROSTER
 var credits := 4.0
 var boss: Boss
-## False once the stage's boss is dead: nothing more spawns until the next stage.
+## False once the portal is open: nothing more spawns until the next stage.
 var spawning := true
 
 var _wave_timer := 1.5
@@ -53,7 +53,7 @@ var _wave_timer := 1.5
 
 ## 1.0 at the start; rises with every minute survived and every stage cleared.
 func difficulty() -> float:
-	return 1.0 + time / 120.0 + stage_index * 0.6
+	return 1.0 + time / 90.0 + stage_index * 0.6
 
 
 func hp_scale() -> float:
@@ -115,7 +115,7 @@ func _spawn_pack() -> void:
 	var cost: float = Db.ENEMIES[kind]["cost"]
 	var count := mini(mini(int(credits / cost), randi_range(PACK_SIZE.x, PACK_SIZE.y)), room)
 	var anchor := _ring_point()
-	var elite_chance := clampf((difficulty() - 1.4) * 0.05, 0.0, 0.3)
+	var elite_chance := clampf((difficulty() - 1.2) * 0.07, 0.0, 0.35)
 	for i in count:
 		var spread := Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0)) * PACK_SPREAD
 		spawn(kind, _on_ground(anchor + spread), randf() < elite_chance)
@@ -156,17 +156,21 @@ func _on_died(enemy: Enemy) -> void:
 		Pickup.drop(world, "heart", at + Vector3(0.6, 0.0, 0.0))
 	if enemy == boss:
 		boss = null
-		spawning = false
 		for i in Team.heroes.size():
 			Pickup.drop(world, "chest", at + Vector3(i * 1.6, 0.0, 1.5))
-		for other: Enemy in Enemy.all.duplicate():
-			other.die()
-		for pickup in get_tree().get_nodes_in_group(Pickup.GROUP):
-			pickup.vacuum = true
 		boss_defeated.emit()
 	elif enemy.elite and randf() < ELITE_CHEST_CHANCE:
 		Pickup.drop(world, "chest", at + Vector3(0.0, 0.0, 1.0))
 	enemy_killed.emit(enemy)
+
+
+## The portal is open: the horde falls, its candy flies in, and nothing more comes.
+func clear_stage() -> void:
+	spawning = false
+	for other: Enemy in Enemy.all.duplicate():
+		other.die()
+	for pickup in get_tree().get_nodes_in_group(Pickup.GROUP):
+		pickup.vacuum = true
 
 
 func _recall_strays() -> void:

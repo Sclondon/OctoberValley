@@ -12,10 +12,11 @@ cart: type VALLEY into WaysideOS).
 2. Weapons fire by themselves at the nearest enemy. Kills drop candy; candy is experience.
 3. Each level-up offers three cards: a new weapon, a weapon level, or a passive. Up to 5 weapons and 5 passives.
 4. Follow the beam of light to the altar and summon the stage boss. Jump its shockwaves.
-5. The dead boss leaves a chest (a free card) and opens the portal to the next stage.
-6. Three stages (The Graveyard, The Pumpkin Patch, The Black Mire), then they repeat, harder, until you die.
+5. The altar works like Risk of Rain 2's teleporter: it charges while a hero stands inside its ring (75 s), and the horde keeps coming. The dead boss leaves a chest (a free card).
+6. Boss dead and altar charged: the horde falls and the portal to the next stage opens.
+7. Three stages (The Graveyard, The Pumpkin Patch, The Black Mire), each 280 m across, then they repeat, harder, until you die.
 
-Difficulty rises by 1 every two minutes and by 0.6 per stage; it scales enemy health, damage,
+Difficulty rises by 1 every 90 seconds and by 0.6 per stage; it scales enemy health, damage,
 numbers and the chance of elites (gold, bigger, 4x health, may drop a chest).
 
 ## Co-op

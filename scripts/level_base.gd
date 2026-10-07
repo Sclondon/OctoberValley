@@ -61,7 +61,7 @@ func prop(sheet: String, height: float, at: Vector3) -> void:
 	body.collision_layer = 8
 	body.collision_mask = 0
 	body.position = at
-	var sprite := AnimSprite.make(sheet, height, true)
+	var sprite := AnimSprite.make(sheet, height, true, true)
 	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 	sprite.clock = randf() * 10.0
 	body.add_child(sprite)
@@ -109,7 +109,7 @@ func build_sky(look: Dictionary) -> void:
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.fog_enabled = true
 	env.fog_light_color = Color(look["fog"])
-	env.fog_density = 0.004
+	env.fog_density = 0.003
 	env.fog_sky_affect = 0.15
 	var world := WorldEnvironment.new()
 	world.environment = env
@@ -119,7 +119,7 @@ func build_sky(look: Dictionary) -> void:
 	sun.light_color = Color(look["sun"])
 	sun.light_energy = 1.0
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 90.0
+	sun.directional_shadow_max_distance = 110.0
 	add_child(sun)
 
 

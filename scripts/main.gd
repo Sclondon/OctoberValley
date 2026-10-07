@@ -1,8 +1,8 @@
 extends Node3D
 ## October Valley. The whole scene is built here in code, and this script runs the loop:
 ##
-##   title -> pick a hero -> stage: fight, level up, find the altar, summon and beat the boss,
-##   take the portal -> next stage (harder; after the last one the stages repeat) -> ... -> death
+##   title -> pick a hero -> stage: fight, level up, find the altar, summon the boss, beat it
+##   and hold the altar until it is charged, take the portal -> next stage (harder; after the last one the stages repeat) -> ... -> death
 ##
 ## The local hero, camera, director, HUD and menus live for the whole session. Each stage is
 ## a fresh `world` node holding the level, the altar, the enemies, shots and loot.
@@ -81,7 +81,7 @@ func _ready() -> void:
 	director.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(director)
 	director.enemy_killed.connect(_on_enemy_killed)
-	director.boss_spawned.connect(func(boss: Node) -> void: _banner(boss.title, "Jump the shockwaves"))
+	director.boss_spawned.connect(func(boss: Node) -> void: _banner(boss.title, "Beat it and hold the ring"))
 	director.boss_defeated.connect(_on_boss_defeated)
 
 	hud = Hud.new()
@@ -241,8 +241,10 @@ func _build(index: int, test_yard: bool, seed_value := randi()) -> void:
 	if level.altar_position != Vector3.INF:
 		altar = Altar.new()
 		altar.position = level.altar_position
+		altar.simulate = not is_guest()
 		world.add_child(altar)
 		altar.summoned.connect(_on_altar_summoned)
+		altar.opened.connect(_on_portal_opened)
 		altar.entered.connect(_on_portal_entered)
 	for seat: int in heroes:
 		var each: Player = heroes[seat]
@@ -261,9 +263,16 @@ func _on_altar_summoned() -> void:
 
 
 func _on_boss_defeated() -> void:
-	if altar:
-		altar.open_portal()
-	_banner("BOSS DEFEATED", "Enter the portal")
+	if altar == null:
+		return
+	altar.boss_dead = true
+	if altar.charge < 1.0:
+		_banner("BOSS DEFEATED", "Hold the altar until it is charged")
+
+
+func _on_portal_opened() -> void:
+	director.clear_stage()
+	_banner("THE PORTAL IS OPEN", "Enter it at the altar")
 
 
 func _on_portal_entered() -> void:

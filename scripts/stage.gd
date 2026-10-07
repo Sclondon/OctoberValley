@@ -3,11 +3,14 @@ extends "res://scripts/level_base.gd"
 ## with plateaus you can run up, rocks to hop on, floating steps, and sprite props. The altar
 ## is placed far from the start.
 
-const WALL_HEIGHT := 16.0
-const PLATEAUS := 9
-const ROCKS := 18
-const STEP_CHAINS := 3
-const PROPS := 110
+const HALF_EXTENT := 140.0
+const WALL_HEIGHT := 20.0
+const PLATEAUS := 26
+const ROCKS := 55
+const STEP_CHAINS := 9
+const PROPS := 340
+## The altar is at least this far from the start.
+const ALTAR_DISTANCE := 170.0
 ## Kept clear of scenery around the start and the altar.
 const CLEARING := 9.0
 
@@ -21,13 +24,13 @@ var _taken: Array = []
 
 func _ready() -> void:
 	_rng.seed = seed_value
-	half_extent = 80.0
+	half_extent = HALF_EXTENT
 	line_color = Color(theme["line"])
 	build_sky(theme)
 	yard(Color(theme["ground"]), Color(theme["wall"]), WALL_HEIGHT)
 	start_position = Vector3(0.0, 0.1, half_extent - 14.0)
 	altar_position = _random_spot(half_extent - 16.0)
-	while altar_position.distance_to(start_position) < 75.0:
+	while altar_position.distance_to(start_position) < ALTAR_DISTANCE:
 		altar_position = _random_spot(half_extent - 16.0)
 	_build_plateaus()
 	_build_rocks()
@@ -57,10 +60,10 @@ func _build_plateaus() -> void:
 	var slope := Color(theme["ramp"])
 	for i in PLATEAUS:
 		for attempt in 20:
-			var size := Vector3(_rng.randf_range(10.0, 20.0), _rng.randf_range(2.0, 5.0), _rng.randf_range(10.0, 20.0))
+			var size := Vector3(_rng.randf_range(10.0, 26.0), _rng.randf_range(2.0, 5.5), _rng.randf_range(10.0, 26.0))
 			var run := size.y * 2.4
 			var half := Vector2(size.x * 0.5 + run, size.z * 0.5 + run)
-			var at := _random_spot(half_extent - 28.0)
+			var at := _random_spot(half_extent - 32.0)
 			if _blocked(at, half):
 				continue
 			_taken.append([Vector2(at.x, at.z), half])

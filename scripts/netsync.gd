@@ -34,7 +34,7 @@ const POSITION_STEP := 50.0
 const ANIMS: Array[String] = ["idle", "run", "jump", "fall"]
 const ALTAR_STATES: Array[String] = ["idle", "boss", "portal"]
 ## Bump when the packets change, so a player on an old page is told to reload.
-const PROTOCOL := 1
+const PROTOCOL := 2
 
 const BILLBOARD := 0
 const POOL := 1
@@ -141,6 +141,7 @@ func _send_snapshot() -> void:
 	out.put_float(director.time)
 	out.put_u8(main.stage_index)
 	out.put_u8(ALTAR_STATES.find(main.altar.state) if main.altar else 255)
+	out.put_u8(int(main.altar.charge * 100.0) if main.altar else 0)
 	var boss: Node3D = director.boss
 	out.put_u8(1 if boss else 0)
 	if boss:
@@ -340,8 +341,10 @@ func _read_snapshot(input: StreamPeerBuffer) -> void:
 	director.time = input.get_float()
 	director.stage_index = input.get_u8()
 	var altar_state := input.get_u8()
+	var altar_charge := input.get_u8() / 100.0
 	if main.altar and altar_state < ALTAR_STATES.size():
 		main.altar.set_state(ALTAR_STATES[altar_state])
+		main.altar.charge = altar_charge
 	main.boss_state = {}
 	if input.get_u8() == 1:
 		var boss: Dictionary = Db.BOSSES[_bosses[input.get_u8()]]

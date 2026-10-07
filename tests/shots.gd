@@ -82,6 +82,7 @@ func _run() -> void:
 	await frames(60 * 6)
 	await shot("boss.png")
 	boss.hit(boss.hp)
+	main.altar.charge = 1.0
 	await frames(90)
 
 	for stage in [2, 3]:
@@ -89,7 +90,7 @@ func _run() -> void:
 		main.cam.distance = 9.0
 		await frames(60 * 8)
 		await shot("stage%d.png" % stage)
-		main.altar.open_portal()
+		main.altar.set_state("portal")
 
 	immortal = false
 	player.hurt(1.0e6, player.global_position + Vector3.FORWARD)

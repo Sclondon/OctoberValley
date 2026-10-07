@@ -59,7 +59,7 @@ func _run() -> void:
 	var player: CharacterBody3D = main.player
 	var director: Node = main.director
 	check("starts in stage 1", main.state == "playing" and main.stage_title == Db.STAGES[0]["name"], main.stage_title)
-	check("has an altar far away", main.altar != null and main.altar.global_position.distance_to(player.global_position) > 70.0)
+	check("has an altar far away", main.altar != null and main.altar.global_position.distance_to(player.global_position) > 160.0)
 	check("starts with the hero's weapon", player.weapons.size() == 1 and player.weapons[0].id == Db.HEROES["joe"]["weapon"])
 
 	# one of every weapon, so each behaviour runs
@@ -87,9 +87,13 @@ func _run() -> void:
 		boss.max_hp = 2.0e9
 		await frames(60 * 22)
 		check("boss attacks", hazards_seen > 0, "%d hazard frames" % hazards_seen)
+		check("the altar charges while held", main.altar.charge > 0.2, "%d%%" % int(main.altar.charge * 100.0))
 		boss.hit(boss.hp)
 		await frames(5)
-		check("boss death opens the portal", main.altar.state == "portal" and director.boss == null)
+		check("a dead boss is not enough", main.altar.state == "boss" and director.boss == null and director.spawning)
+		main.altar.charge = 0.99
+		await frames(60 * 2)
+		check("boss dead and charged opens the portal", main.altar.state == "portal")
 		check("the horde stops", Enemy.all.is_empty() and not director.spawning)
 		await frames(120)
 		player.respawn(main.altar.global_position + Vector3(2.0, 0.2, 0.0))
@@ -97,8 +101,9 @@ func _run() -> void:
 		await press("interact")
 		check("portal leads to stage 2", main.stage_index == 1 and main.stage_title == Db.STAGES[1]["name"], main.stage_title)
 		check("hero keeps their build", player.weapons.size() == Db.WEAPONS.size() and player.level >= 2)
-		await frames(60 * 6)
-		check("stage 2 spawns its roster", Enemy.all.size() > 0, "%d alive" % Enemy.all.size())
+		var kills_before: int = player.kills
+		await frames(60 * 8)
+		check("stage 2 spawns its roster", Enemy.all.size() > 0 or player.kills > kills_before, "%d alive, %d killed" % [Enemy.all.size(), player.kills - kills_before])
 
 	immortal = false
 	player.hurt(1.0e6, player.global_position + Vector3.FORWARD)

@@ -138,7 +138,11 @@ func _process(_delta: float) -> void:
 			"idle":
 				_objective.text = "Find the altar: %d m" % away
 			"boss":
-				_objective.text = "Defeat the boss"
+				var charged := int(altar.charge * 100.0)
+				if not main.boss_info().is_empty():
+					_objective.text = "Defeat the boss   Altar %d%%" % charged
+				else:
+					_objective.text = "Hold the ring to charge the altar: %d%%  (%d m)" % [charged, away]
 			"portal":
 				_objective.text = "Enter the portal: %d m" % away
 		var offer: String = altar.prompt(player.global_position)

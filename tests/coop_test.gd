@@ -139,7 +139,8 @@ func _host() -> void:
 	main.director.boss.hp = 1.0e9
 	await frames(60 * 6)
 	main.director.boss.hit(1.0e9)
-	await frames(30)
+	main.altar.charge = 0.99
+	await frames(90)
 	check("portal opens", main.altar.state == "portal")
 	main.player.respawn(main.altar.global_position + Vector3(2.0, 0.2, 0.0))
 	await frames(10)

@@ -195,7 +195,7 @@ func max_hp() -> float:
 
 
 func xp_needed() -> float:
-	return 5.0 + level * 3.0 + floorf(level * level * 0.3)
+	return 8.0 + level * 5.0 + floorf(level * level * 0.6)
 
 
 func gain_xp(amount: float) -> void:

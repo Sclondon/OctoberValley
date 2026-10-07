@@ -159,25 +159,25 @@ const HERO_ORDER: Array[String] = ["joe", "matt", "alex", "jon"]
 # ---------------------------------------------------------------- enemies
 # move: walk, hop or fly. cost: director credits. hp and damage are at difficulty 1.
 const ENEMIES := {
-	"zombie": {"sheet": "zombie", "height": 1.9, "radius": 0.4, "speed": 3.2, "move": "walk", "hp": 10.0, "damage": 8.0, "xp": 1, "cost": 1.0},
-	"pumpkin": {"sheet": "pumpkin", "height": 1.0, "radius": 0.45, "speed": 4.6, "move": "hop", "hp": 16.0, "damage": 10.0, "xp": 2, "cost": 1.5},
-	"skull": {"sheet": "skull", "height": 1.1, "radius": 0.45, "speed": 5.8, "move": "fly", "hp": 7.0, "damage": 6.0, "xp": 1, "cost": 1.5},
-	"ghost": {"sheet": "ghost", "height": 2.3, "radius": 0.45, "speed": 3.2, "move": "fly", "hp": 24.0, "damage": 10.0, "xp": 3, "cost": 3.0},
-	"scarecrow": {"sheet": "scarecrow", "height": 3.0, "radius": 0.5, "speed": 3.0, "move": "walk", "hp": 60.0, "damage": 14.0, "xp": 6, "cost": 6.0},
-	"werewolf": {"sheet": "werewolf", "height": 1.7, "radius": 0.6, "speed": 6.4, "move": "walk", "hp": 45.0, "damage": 14.0, "xp": 6, "cost": 6.0},
-	"shadowbeast": {"sheet": "shadowbeast", "height": 2.2, "radius": 0.7, "speed": 4.6, "move": "walk", "hp": 90.0, "damage": 18.0, "xp": 10, "cost": 10.0},
-	"swampthing": {"sheet": "swampthing", "height": 3.6, "radius": 0.8, "speed": 3.2, "move": "walk", "hp": 160.0, "damage": 22.0, "xp": 16, "cost": 16.0},
+	"zombie": {"sheet": "zombie", "height": 1.9, "radius": 0.4, "speed": 3.2, "move": "walk", "hp": 15.0, "damage": 11.0, "xp": 1, "cost": 1.0},
+	"pumpkin": {"sheet": "pumpkin", "height": 1.0, "radius": 0.45, "speed": 4.6, "move": "hop", "hp": 24.0, "damage": 13.0, "xp": 2, "cost": 1.5},
+	"skull": {"sheet": "skull", "height": 1.1, "radius": 0.45, "speed": 5.8, "move": "fly", "hp": 10.0, "damage": 8.0, "xp": 1, "cost": 1.5},
+	"ghost": {"sheet": "ghost", "height": 2.3, "radius": 0.45, "speed": 3.4, "move": "fly", "hp": 36.0, "damage": 14.0, "xp": 3, "cost": 3.0},
+	"scarecrow": {"sheet": "scarecrow", "height": 3.0, "radius": 0.5, "speed": 3.2, "move": "walk", "hp": 90.0, "damage": 19.0, "xp": 6, "cost": 6.0},
+	"werewolf": {"sheet": "werewolf", "height": 1.7, "radius": 0.6, "speed": 6.6, "move": "walk", "hp": 68.0, "damage": 19.0, "xp": 6, "cost": 6.0},
+	"shadowbeast": {"sheet": "shadowbeast", "height": 2.2, "radius": 0.7, "speed": 4.8, "move": "walk", "hp": 135.0, "damage": 24.0, "xp": 10, "cost": 10.0},
+	"swampthing": {"sheet": "swampthing", "height": 3.6, "radius": 0.8, "speed": 3.4, "move": "walk", "hp": 240.0, "damage": 30.0, "xp": 16, "cost": 16.0},
 }
 
 # A boss is a giant version of an enemy with its own attacks (see boss.gd):
 #   slam (a shockwave to jump over), volley (a fan of shots), summon (a pack), charge (a dash).
 const BOSSES := {
 	"scarecrow_king": {"name": "The Harvest King", "enemy": "scarecrow", "height": 7.0, "radius": 1.3, "speed": 4.0,
-		"hp": 700.0, "damage": 16.0, "attacks": ["volley", "summon", "slam"], "shot": "fireball", "minion": "pumpkin"},
+		"hp": 2600.0, "damage": 22.0, "attacks": ["volley", "summon", "slam"], "shot": "fireball", "minion": "pumpkin"},
 	"alpha_wolf": {"name": "The Alpha", "enemy": "werewolf", "height": 4.6, "radius": 1.6, "speed": 6.0,
-		"hp": 1300.0, "damage": 22.0, "attacks": ["charge", "charge", "slam", "summon"], "shot": "fireball", "minion": "werewolf"},
+		"hp": 4200.0, "damage": 28.0, "attacks": ["charge", "charge", "slam", "summon"], "shot": "fireball", "minion": "werewolf"},
 	"swamp_lord": {"name": "Lord Of The Mire", "enemy": "swampthing", "height": 8.0, "radius": 1.8, "speed": 3.6,
-		"hp": 1900.0, "damage": 26.0, "attacks": ["slam", "volley", "summon", "slam"], "shot": "wisp", "minion": "ghost"},
+		"hp": 6000.0, "damage": 34.0, "attacks": ["slam", "volley", "summon", "slam"], "shot": "wisp", "minion": "ghost"},
 }
 
 # Candy is the experience pickup: the biggest sprite the value covers is used.
@@ -213,6 +213,7 @@ const STAGES := [
 # ---------------------------------------------------------------- helpers
 static var _textures := {}
 static var _icons := {}
+static var _feet := {}
 
 
 static func tex(file: String) -> Texture2D:
@@ -227,6 +228,36 @@ static func sheet(id: String) -> Array:
 		var entry: Array = SHEETS[id]
 		return [tex(entry[0]), entry[1], entry[2]]
 	return [tex(id), 1, 1.0]
+
+
+## Where a sprite's feet are in its first frame, in pixels: x is how far the lowest solid
+## pixels sit from the frame's middle, y how many empty rows lie under them. The art has
+## clear margins (the trees most of all), and without this things float.
+static func feet(id: String) -> Vector2:
+	if _feet.has(id):
+		return _feet[id]
+	var info := sheet(id)
+	var texture: Texture2D = info[0]
+	var image := texture.get_image()
+	var found := Vector2.ZERO
+	if image:
+		if image.is_compressed():
+			image.decompress()
+		var width := image.get_width() / int(info[1])
+		var height := image.get_height()
+		for y in range(height - 1, -1, -1):
+			var total := 0.0
+			var count := 0
+			for x in width:
+				if image.get_pixel(x, y).a > 0.6:
+					total += x + 0.5
+					count += 1
+			# a stray pixel or two is not the ground line
+			if count >= 3:
+				found = Vector2(total / count - width * 0.5, height - 1 - y)
+				break
+	_feet[id] = found
+	return found
 
 
 ## A square icon: the first frame of a sheet, or a plain image.
