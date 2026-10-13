@@ -2,6 +2,8 @@ extends RefCounted
 ## Dev flags from the command line (`-- --server=http://127.0.0.1:3111`) or the page URL
 ## (`?server=...`). Values are strings; a bare flag is "1".
 ##   server=<url>   use this rooms server for co-op instead of the live site's
+##   touch          show the touch controls, as on a phone
+##   scale3d=<0-1>  draw the 3D view at this share of the window's resolution
 
 static var _flags := {}
 static var _read := false

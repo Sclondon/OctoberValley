@@ -38,6 +38,7 @@ func _def() -> Dictionary:
 
 func _ready() -> void:
 	is_boss = true
+	rise_time = 1.2
 	super()
 	title = _boss["name"]
 	hit_radius = maxf(radius * 1.3, height * 0.3)
@@ -77,6 +78,7 @@ func _wish(delta: float) -> Vector3:
 		_attack = attacks[_next % attacks.size()]
 		_next += 1
 		_state = "windup"
+		Sfx.at("warn", global_position)
 		_timer = WINDUP
 	return super(delta)
 
@@ -98,11 +100,13 @@ func _release() -> void:
 			for i in (6 if enraged() else 4):
 				var out := Vector3.FORWARD.rotated(Vector3.UP, randf() * TAU) * (radius + 3.0)
 				director.spawn(_boss["minion"], global_position + out)
+			Sfx.at("spawn", global_position)
 			_rest()
 		"charge":
 			var to_target := target.global_position - global_position
 			to_target.y = 0.0
 			_charge_dir = to_target.normalized()
+			Sfx.at("boss", global_position, 0.7, 1.5)
 			_state = "charge"
 			_timer = CHARGE_TIME
 			accel = 200.0

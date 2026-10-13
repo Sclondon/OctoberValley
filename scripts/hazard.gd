@@ -4,6 +4,8 @@ extends Node3D
 
 const AnimSprite := preload("res://scripts/anim_sprite.gd")
 const Team := preload("res://scripts/team.gd")
+const Sfx := preload("res://scripts/sfx.gd")
+const Fx := preload("res://scripts/fx.gd")
 
 const GROUP := "hazards"
 
@@ -58,6 +60,7 @@ static func ring(parent: Node, at: Vector3, ring_damage: float, max_radius: floa
 func _ready() -> void:
 	add_to_group(GROUP)
 	net_id = Team.next_id()
+	announce(mode == "ring", global_position)
 	if mode != "ring":
 		return
 	add_child(ring_visual())
@@ -109,3 +112,13 @@ func _physics_process(delta: float) -> void:
 func _set_ring() -> void:
 	_torus.inner_radius = maxf(ring_radius - 0.35, 0.05)
 	_torus.outer_radius = ring_radius + 0.35
+
+
+## The sound (and for a shockwave, the jolt) of a hazard starting at `at`. Guests call this
+## too, when one first shows up in a snapshot.
+static func announce(is_ring: bool, at: Vector3) -> void:
+	if is_ring:
+		Sfx.at("ring", at)
+		Fx.shake(0.55, at)
+	else:
+		Sfx.at("fire", at, 0.6, 0.8)

@@ -19,6 +19,18 @@ const MAX_ALIVE := 100
 const EXTRA_HERO_CREDITS := 0.6
 const EXTRA_HERO_ALIVE := 20
 const CREDITS_PER_SECOND := 1.3
+## A run opens at this share of the spawn rate and reaches all of it after WARM_UP seconds,
+## so the first weapon has a chance against the first minute.
+const WARM_UP_START := 0.45
+const WARM_UP := 100.0
+## How much each stage cleared adds to the difficulty (a minute and a half of play adds 1).
+const STAGE_STEP := 1.2
+## Past this difficulty, health and damage also grow with the square of the excess.
+const LATE_FROM := 4.0
+const LATE_HP := 0.06
+const LATE_DAMAGE := 0.02
+## The share of the usual horde that keeps coming while a boss is alive.
+const BOSS_FIGHT_RATE := 0.33
 const WAVE_GAP := Vector2(2.0, 4.0)
 const PACK_SIZE := Vector2i(3, 8)
 const RING := Vector2(16.0, 30.0)
@@ -27,7 +39,7 @@ const PACK_SPREAD := 3.0
 const LEASH := 75.0
 ## Bosses feel the difficulty less than the horde does, or late summons drag on.
 const BOSS_HP_SCALE := 0.75
-const HEART_CHANCE := 0.015
+const HEART_CHANCE := 0.03
 const ELITE_CHEST_CHANCE := 0.25
 ## Used when the level has no theme (the test yard): everything, a little at a time.
 const DEFAULT_ROSTER := [["zombie", 0.0], ["pumpkin", 0.0], ["skull", 20.0], ["ghost", 40.0],
@@ -53,15 +65,20 @@ var _wave_timer := 1.5
 
 ## 1.0 at the start; rises with every minute survived and every stage cleared.
 func difficulty() -> float:
-	return 1.0 + time / 90.0 + stage_index * 0.6
+	return 1.0 + time / 90.0 + stage_index * STAGE_STEP
 
 
 func hp_scale() -> float:
-	return 1.0 + (difficulty() - 1.0) * 0.45
+	return 1.0 + (difficulty() - 1.0) * 0.45 + LATE_HP * _late() * _late()
 
 
 func damage_scale() -> float:
-	return 1.0 + (difficulty() - 1.0) * 0.2
+	return 1.0 + (difficulty() - 1.0) * 0.2 + LATE_DAMAGE * _late() * _late()
+
+
+## How far the difficulty is past LATE_FROM: from there enemies toughen faster than a build grows.
+func _late() -> float:
+	return maxf(difficulty() - LATE_FROM, 0.0)
 
 
 func alive() -> int:
@@ -94,7 +111,8 @@ func _physics_process(delta: float) -> void:
 	if not spawning:
 		return
 	var extra_heroes := Team.heroes.size() - 1
-	var rate := CREDITS_PER_SECOND * difficulty() * (0.4 if boss else 1.0) * (1.0 + EXTRA_HERO_CREDITS * extra_heroes)
+	var warm := clampf(WARM_UP_START + (1.0 - WARM_UP_START) * time / WARM_UP, WARM_UP_START, 1.0)
+	var rate := CREDITS_PER_SECOND * difficulty() * warm * (BOSS_FIGHT_RATE if boss else 1.0) * (1.0 + EXTRA_HERO_CREDITS * extra_heroes)
 	credits = minf(credits + rate * delta, 30.0 + 20.0 * difficulty())
 	_wave_timer -= delta
 	if _wave_timer <= 0.0:

@@ -4,6 +4,11 @@ extends Node3D
 ## and the sky. test_level.gd and stage.gd build on this.
 
 const GRID := preload("res://shaders/grid.gdshader")
+const TERRAIN := preload("res://shaders/terrain.gdshader")
+const NIGHT_SKY := preload("res://shaders/night_sky.gdshader")
+const FOG_DENSITY := 0.0065
+## Billboards this close to the camera are not drawn, so a tree cannot fill the screen.
+const PROP_HIDE_WITHIN := 5.0
 const FONT := preload("res://fonts/PixelifySans.ttf")
 const AnimSprite := preload("res://scripts/anim_sprite.gd")
 
@@ -14,7 +19,11 @@ var start_position := Vector3(0.0, 0.1, 40.0)
 var altar_position := Vector3.INF
 var line_color := Color("f0a050")
 
+## The test yard keeps the measuring grid; stages get the pixel terrain.
+var greybox := false
+
 var _materials := {}
+var _glow_texture: GradientTexture2D
 
 
 ## A static box centred on `at`. Returns the body so callers can turn it.
@@ -64,7 +73,11 @@ func prop(sheet: String, height: float, at: Vector3) -> void:
 	var sprite := AnimSprite.make(sheet, height, true, true)
 	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 	sprite.clock = randf() * 10.0
+	if height > 4.0:
+		sprite.visibility_range_begin = PROP_HIDE_WITHIN
 	body.add_child(sprite)
+	if sheet == "street_lamp":
+		glow(Vector3(0.0, height * 0.86, 0.0), Color(1.0, 0.78, 0.4, 0.55), 2.6, body)
 	var shape := CylinderShape3D.new()
 	shape.radius = 0.45
 	shape.height = minf(height, 3.0)
@@ -89,17 +102,24 @@ func sign_post(at: Vector3, text: String) -> void:
 	add_child(label)
 
 
-## The sky, fog and sun. `look` holds hex colours: sky_top, sky_horizon, ambient, fog, sun.
+## The sky, fog and moonlight. `look` holds hex colours: sky_top, sky_horizon, ambient, fog, sun.
 func build_sky(look: Dictionary) -> void:
-	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color(look["sky_top"])
-	sky_material.sky_horizon_color = Color(look["sky_horizon"])
-	sky_material.sky_curve = 0.08
-	sky_material.ground_horizon_color = Color(look["sky_horizon"])
-	sky_material.ground_bottom_color = Color(look["sky_top"])
-	sky_material.sun_angle_max = 12.0
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-28.0, 140.0, 0.0)
+	sun.light_color = Color(look["sun"])
+	sun.light_energy = 1.0
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 110.0
+	add_child(sun)
+	var sky_material := ShaderMaterial.new()
+	sky_material.shader = NIGHT_SKY
+	sky_material.set_shader_parameter("top_color", Color(look["sky_top"]))
+	sky_material.set_shader_parameter("horizon_color", Color(look["sky_horizon"]))
+	sky_material.set_shader_parameter("moon_color", Color(look["sun"]).lerp(Color.WHITE, 0.4))
+	sky_material.set_shader_parameter("moon_dir", sun.basis.z)
 	var sky := Sky.new()
 	sky.sky_material = sky_material
+	sky.radiance_size = Sky.RADIANCE_SIZE_32
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
@@ -108,26 +128,47 @@ func build_sky(look: Dictionary) -> void:
 	env.ambient_light_energy = 0.55
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.fog_enabled = true
-	env.fog_light_color = Color(look["fog"])
-	env.fog_density = 0.003
-	env.fog_sky_affect = 0.15
+	env.fog_light_color = Color(look["fog"]).lerp(Color(look["sky_horizon"]), 0.35)
+	env.fog_density = FOG_DENSITY
+	env.fog_sky_affect = 0.0
 	var world := WorldEnvironment.new()
 	world.environment = env
 	add_child(world)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-28.0, 140.0, 0.0)
-	sun.light_color = Color(look["sun"])
-	sun.light_energy = 1.0
-	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 110.0
-	add_child(sun)
 
 
 func _material(color: Color) -> ShaderMaterial:
 	if not _materials.has(color):
 		var material := ShaderMaterial.new()
-		material.shader = GRID
+		material.shader = GRID if greybox else TERRAIN
 		material.set_shader_parameter("base_color", color)
-		material.set_shader_parameter("line_color", line_color.lerp(color, 0.35))
+		if greybox:
+			material.set_shader_parameter("line_color", line_color.lerp(color, 0.35))
+		else:
+			material.set_shader_parameter("accent_color", line_color.lerp(color, 0.25))
 		_materials[color] = material
 	return _materials[color]
+
+
+## A soft round glow that always faces the camera (lamp heads, landmark crystals).
+func glow(at: Vector3, color: Color, size: float, parent: Node3D = null) -> Sprite3D:
+	if _glow_texture == null:
+		var fade := Gradient.new()
+		fade.set_color(0, Color(1.0, 1.0, 1.0, 0.85))
+		fade.set_color(1, Color(1.0, 1.0, 1.0, 0.0))
+		_glow_texture = GradientTexture2D.new()
+		_glow_texture.gradient = fade
+		_glow_texture.fill = GradientTexture2D.FILL_RADIAL
+		_glow_texture.fill_from = Vector2(0.5, 0.5)
+		_glow_texture.fill_to = Vector2(1.0, 0.5)
+		_glow_texture.width = 32
+		_glow_texture.height = 32
+	var sprite := Sprite3D.new()
+	sprite.texture = _glow_texture
+	sprite.pixel_size = size / 32.0
+	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sprite.shaded = false
+	sprite.modulate = color
+	sprite.position = at
+	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	(parent if parent else self).add_child(sprite)
+	return sprite

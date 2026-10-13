@@ -10,6 +10,7 @@ const KEYS := {
 	"sprint": [KEY_SHIFT],
 	"interact": [KEY_E],
 	"pause": [KEY_ESCAPE],
+	"mute": [KEY_M],
 	"toggle_spawns": [KEY_F1],
 }
 

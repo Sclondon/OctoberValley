@@ -7,6 +7,7 @@ const Enemy := preload("res://scripts/enemy.gd")
 const Shot := preload("res://scripts/shot.gd")
 const AnimSprite := preload("res://scripts/anim_sprite.gd")
 const Fx := preload("res://scripts/fx.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const SLASH_ARC := 1.4  # radians either side of the aim
 const SLASH_TURNS := [0.0, PI, PI * 0.5, -PI * 0.5]
@@ -112,8 +113,7 @@ func _fire(player: Node3D) -> bool:
 				rang.hit_radius = 0.8 * area
 		"strike":
 			var radius: float = def["strike_radius"] * area
-			var marks := Enemy.within(origin, reach)
-			marks.shuffle()
+			var marks := Enemy.marks(origin, reach)
 			for i in mini(amount, marks.size()):
 				var mark: Node3D = marks[i]
 				var ground: Vector3 = mark.global_position
@@ -131,8 +131,7 @@ func _fire(player: Node3D) -> bool:
 				sword.hit_radius = 1.3
 				sword.global_position = origin
 		"flask":
-			var marks := Enemy.within(origin, reach)
-			marks.shuffle()
+			var marks := Enemy.marks(origin, reach)
 			for i in amount:
 				var flask := _shot(player, "flask", sheet, 0.9, damage)
 				flask.from = origin
@@ -172,6 +171,7 @@ func _shot(player: Node3D, mode: String, sheet: String, size: float, damage: flo
 		sprite.finished.connect(shot.queue_free)
 	shot.add_child(sprite)
 	player.world.add_child(shot)
+	Sfx.for_sheet(sheet, player.centre())
 	return shot
 
 

@@ -20,6 +20,7 @@ const Hazard := preload("res://scripts/hazard.gd")
 const Pickup := preload("res://scripts/pickup.gd")
 const AnimSprite := preload("res://scripts/anim_sprite.gd")
 const Fx := preload("res://scripts/fx.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const K_SNAP := 83    # S
 const K_ENEMY := 69   # E
@@ -34,7 +35,7 @@ const POSITION_STEP := 50.0
 const ANIMS: Array[String] = ["idle", "run", "jump", "fall"]
 const ALTAR_STATES: Array[String] = ["idle", "boss", "portal"]
 ## Bump when the packets change, so a player on an old page is told to reload.
-const PROTOCOL := 2
+const PROTOCOL := 3
 
 const BILLBOARD := 0
 const POOL := 1
@@ -103,8 +104,8 @@ func send_stage(index: int, seed_value: int) -> void:
 	net.send_json(net.BROADCAST, _stage)
 
 
-func send_banner(text: String, sub: String) -> void:
-	net.send_json(net.BROADCAST, {"t": "banner", "text": text, "sub": sub})
+func send_banner(text: String, sub: String, color: Color) -> void:
+	net.send_json(net.BROADCAST, {"t": "banner", "text": text, "sub": sub, "c": color.to_html(false)})
 
 
 func send_over(lines: Array) -> void:
@@ -321,7 +322,7 @@ func _guest_json(message: Dictionary) -> void:
 			ids.assign(message["ids"])
 			main.show_offer(str(message["heading"]), ids)
 		"banner":
-			main.hud.banner(str(message["text"]), str(message["sub"]))
+			main.hud.banner(str(message["text"]), str(message["sub"]), Color(str(message.get("c", "ffd9a0"))))
 		"over":
 			main.game_over(message["lines"])
 		"old":
@@ -395,16 +396,28 @@ func _read_rows(input: StreamPeerBuffer, kind: int, views: Dictionary) -> void:
 		var size := 0.0 if kind == K_ENEMY else input.get_u8() / 10.0
 		seen[id] = true
 		var view: Node3D = views.get(id)
+		if view != null and is_instance_valid(view) and kind == K_THINGS and view.get_meta("type") != a:
+			view.queue_free()  # a flask that has landed is a pool now
+			view = null
 		if view == null:
 			view = _enemy_view(a, b) if kind == K_ENEMY else _thing_view(a, b, size)
 			view.position = at
 			view.set_meta("to", at)
 			main.world.add_child(view)
 			views[id] = view
+			# the sound a shot makes is the sound of it first being seen
+			if kind == K_THINGS and (a == BALL or a == RING):
+				Hazard.announce(a == RING, at)
+			elif kind == K_THINGS and a != LOOT:
+				Sfx.for_sheet(view.get_meta("sheet"), at)
 		elif not is_instance_valid(view):
 			continue
 		if kind == K_ENEMY:
-			view.get_child(0).modulate = Color(1.0, 0.35, 0.35) if b & 2 else view.get_meta("tint")
+			var struck := b & 2 != 0
+			if struck and not view.get_meta("struck", false):
+				Sfx.at("hit", at, 0.7, randf_range(0.9, 1.15))
+			view.set_meta("struck", struck)
+			view.get_child(0).modulate = Enemy.FLASH_TINT if struck else view.get_meta("tint")
 		elif a == RING:
 			var torus: TorusMesh = view.get_child(0).mesh
 			torus.inner_radius = maxf(size * 2.0 - 0.35, 0.05)
@@ -414,6 +427,7 @@ func _read_rows(input: StreamPeerBuffer, kind: int, views: Dictionary) -> void:
 		for id: int in views.keys():
 			if not seen.has(id):
 				if is_instance_valid(views[id]):
+					_gone(views[id], kind)
 					views[id].queue_free()
 				views.erase(id)
 
@@ -435,6 +449,12 @@ func _enemy_view(kind: int, flags: int) -> Node3D:
 	sprite.modulate = view.get_meta("tint")
 	view.add_child(sprite)
 	view.set_meta("enemy", true)
+	view.set_meta("def", def)
+	view.set_meta("tall", sprite.pixel_size * sprite.texture.get_height())
+	view.set_meta("boss", kind >= 200)
+	Enemy.rise(sprite, 1.2 if kind >= 200 else 0.35)
+	if kind >= 200:
+		main.boss_fanfare()
 	return view
 
 
@@ -442,6 +462,7 @@ func _thing_view(type: int, sheet_index: int, size: float) -> Node3D:
 	var sheet: String = _sheets[sheet_index]
 	var view := Node3D.new()
 	view.set_meta("type", type)
+	view.set_meta("sheet", sheet)
 	match type:
 		POOL:
 			view.add_child(Shot.pool_sprite(sheet, size))
@@ -488,3 +509,17 @@ func _get_position(input: StreamPeerBuffer) -> Vector3:
 func _json(data: PackedByteArray) -> Dictionary:
 	var message: Variant = JSON.parse_string(data.get_string_from_utf8())
 	return message if message is Dictionary else {}
+
+
+## Something the guest was drawing is no longer in the host's snapshot. An enemy that goes has
+## died; loot that goes while a hero is on top of it was picked up.
+func _gone(view: Node3D, kind: int) -> void:
+	if kind == K_ENEMY:
+		var tall: float = view.get_meta("tall")
+		Enemy.burst_at(main.world, view.position + Vector3.UP * tall * 0.5, view.get_meta("def"), tall, view.get_meta("boss"))
+	elif view.get_meta("type") == LOOT:
+		for hero: Node3D in main.heroes.values():
+			if hero.centre().distance_to(view.position) < 3.0:
+				var sheet: String = view.get_meta("sheet")
+				Pickup.collected("chest" if sheet == "chest" else ("heart" if sheet == "heart_pump" else "candy"), view.position, main.world)
+				break

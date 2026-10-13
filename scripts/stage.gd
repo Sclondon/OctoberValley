@@ -13,6 +13,8 @@ const PROPS := 340
 const ALTAR_DISTANCE := 170.0
 ## Kept clear of scenery around the start and the altar.
 const CLEARING := 9.0
+## Glowing towers to steer by, one to a quarter of the map: [colour, height].
+const LANDMARKS := [["ff9a3a", 26.0], ["5ad8ff", 21.0], ["ff6ac0", 30.0], ["b0ff70", 23.0]]
 
 var theme: Dictionary
 var seed_value := 0
@@ -32,6 +34,8 @@ func _ready() -> void:
 	altar_position = _random_spot(half_extent - 16.0)
 	while altar_position.distance_to(start_position) < ALTAR_DISTANCE:
 		altar_position = _random_spot(half_extent - 16.0)
+	_build_cliffs()
+	_build_landmarks()
 	_build_plateaus()
 	_build_rocks()
 	_build_steps()
@@ -123,3 +127,55 @@ func _build_props() -> void:
 			if roll <= 0:
 				prop(entry[0], entry[1], at)
 				break
+
+
+## Rough rock faces of uneven height in front of the outer walls, so the valley has a
+## skyline instead of a box's rim.
+func _build_cliffs() -> void:
+	var wall := Color(theme["wall"]).lightened(0.08)
+	for side in 4:
+		var out := Vector3.FORWARD.rotated(Vector3.UP, side * PI * 0.5)
+		var along := Vector3(-out.z, 0.0, out.x)
+		var done := -half_extent
+		while done < half_extent:
+			var width := _rng.randf_range(12.0, 26.0)
+			var depth := _rng.randf_range(3.0, 9.0)
+			var height := _rng.randf_range(WALL_HEIGHT * 0.7, WALL_HEIGHT * 1.7)
+			var centre := out * (half_extent - depth * 0.5) + along * (done + width * 0.5)
+			var size := Vector3(width, height, depth) if is_zero_approx(out.x) else Vector3(depth, height, width)
+			block(centre + Vector3.UP * height * 0.5, size, wall)
+			_taken.append([Vector2(centre.x, centre.z), Vector2(size.x, size.z) * 0.5])
+			done += width
+
+
+## A tall stepped tower with a light on top in each quarter of the map. Each has its own
+## colour, so "the pink one" is a direction.
+func _build_landmarks() -> void:
+	var rock := Color(theme["rock"]).lightened(0.12)
+	for i in LANDMARKS.size():
+		var quarter := Vector3(-1.0 if i % 2 == 0 else 1.0, 0.0, -1.0 if i < 2 else 1.0)
+		for attempt in 12:
+			var at := Vector3(quarter.x * _rng.randf_range(35.0, 95.0), 0.0, quarter.z * _rng.randf_range(35.0, 95.0))
+			if _blocked(at, Vector2(4.0, 4.0)):
+				continue
+			_taken.append([Vector2(at.x, at.z), Vector2(4.0, 4.0)])
+			var color := Color(str(LANDMARKS[i][0]))
+			var tall: float = LANDMARKS[i][1]
+			block(at + Vector3.UP * tall * 0.15, Vector3(6.0, tall * 0.3, 6.0), rock)
+			block(at + Vector3.UP * tall * 0.5, Vector3(4.0, tall * 0.4, 4.0), rock)
+			block(at + Vector3.UP * tall * 0.85, Vector3(2.4, tall * 0.3, 2.4), rock)
+			var light := StandardMaterial3D.new()
+			light.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			light.albedo_color = color
+			light.disable_fog = true
+			var gem := BoxMesh.new()
+			gem.size = Vector3.ONE * 2.6
+			gem.material = light
+			var crystal := MeshInstance3D.new()
+			crystal.mesh = gem
+			crystal.position = at + Vector3.UP * (tall + 2.4)
+			crystal.rotation = Vector3(0.6, 0.78, 0.0)
+			crystal.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(crystal)
+			glow(crystal.position, Color(color, 0.5), 11.0)
+			break

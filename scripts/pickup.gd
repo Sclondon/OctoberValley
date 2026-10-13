@@ -5,6 +5,8 @@ extends Node3D
 const AnimSprite := preload("res://scripts/anim_sprite.gd")
 const Db := preload("res://scripts/db.gd")
 const Team := preload("res://scripts/team.gd")
+const Sfx := preload("res://scripts/sfx.gd")
+const Fx := preload("res://scripts/fx.gd")
 
 const GROUP := "pickups"
 const MAGNET_RANGE := 3.5
@@ -84,4 +86,26 @@ func _collect(hero: Node3D) -> void:
 			hero.heal(HEART_HEAL)
 		"chest":
 			hero.chests_owed += 1
+	collected(kind, global_position, get_parent())
 	queue_free()
+
+
+static var _streak := 0
+static var _streak_at := 0.0
+
+
+## The sound and sparkle of something being picked up at `at` (guests call this too). Candy
+## picked up in a quick run climbs in pitch.
+static func collected(pickup_kind: String, at: Vector3, parent: Node) -> void:
+	match pickup_kind:
+		"candy":
+			var now := Time.get_ticks_msec() / 1000.0
+			_streak = _streak + 1 if now - _streak_at < 0.7 else 0
+			_streak_at = now
+			Sfx.at("candy", at, 0.8, 1.0 + minf(_streak, 16.0) * 0.04)
+		"heart":
+			Sfx.at("heart", at)
+			Fx.puff(parent, at + Vector3.UP * 0.5, Color("ff6a8a"), 8)
+		"chest":
+			Sfx.at("chest", at)
+			Fx.puff(parent, at + Vector3.UP * 0.5, Color("ffd060"), 16, 1.4)

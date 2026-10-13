@@ -7,6 +7,7 @@ const Db := preload("res://scripts/db.gd")
 const AnimSprite := preload("res://scripts/anim_sprite.gd")
 const Fx := preload("res://scripts/fx.gd")
 const Team := preload("res://scripts/team.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 signal died(enemy: CharacterBody3D)
 
@@ -19,6 +20,12 @@ const TOUCH_GAP := 1.0
 ## How often it looks again for the nearest hero.
 const RETARGET := 0.4
 const ELITE_TINT := Color(1.0, 0.78, 0.3)
+## A struck enemy goes white for a moment (the sprite is unshaded, so this over-brightens it).
+const FLASH_TINT := Color(5.0, 5.0, 5.0)
+const FLASH_TIME := 0.08
+const FLASH_GAP := 0.3
+## Weapons judge a boss to be this much of its real distance away when choosing a target.
+const BOSS_PULL := 0.3
 
 ## Every living enemy, bosses included. Shots and weapons search this.
 static var all: Array = []
@@ -48,9 +55,12 @@ var move := "walk"
 var accel := ACCEL
 var dead := false
 var tint := Color.WHITE
+## Seconds it takes to grow out of the ground.
+var rise_time := 0.35
 
 var _touch_cd := 0.0
 var _flash := 0.0
+var _flash_rest := 0.0
 var _retarget := 0.0
 
 
@@ -89,8 +99,24 @@ func _ready() -> void:
 	sprite.clock = randf() * 10.0
 	sprite.modulate = tint
 	add_child(sprite)
+	rise(sprite, rise_time)
 	net_id = Team.next_id()
 	all.append(self)
+
+
+## Grows a sprite out of the ground, so nothing just appears (guests do the same to theirs).
+static func rise(new_sprite: Sprite3D, seconds := 0.35) -> void:
+	new_sprite.scale = Vector3(1.0, 0.05, 1.0)
+	new_sprite.create_tween().tween_property(new_sprite, "scale", Vector3.ONE, seconds).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## The pixels an enemy bursts into (guests do the same when one of theirs goes).
+static func burst_at(parent: Node, at: Vector3, def: Dictionary, size: float, boss := false) -> void:
+	Fx.puff(parent, at, Color(str(def.get("puff", "d8d0e8"))), 30 if boss else 9, clampf(size / 1.6, 0.8, 2.2))
+	Sfx.at("boom" if boss else "kill", at, 1.0, randf_range(0.85, 1.15))
+	if boss:
+		Fx.shake(0.9, at)
+		Fx.ring(parent, at - Vector3.UP * size * 0.5, Color("ffd9a0"), 14.0, 0.7)
 
 
 func _exit_tree() -> void:
@@ -107,8 +133,12 @@ func hit(amount: float, push := Vector3.ZERO) -> void:
 		return
 	hp -= amount
 	Fx.number(get_parent(), global_position + Vector3.UP * (height + 0.3), amount, Color("ffe9a0") if amount < 30.0 else Color("ff9a50"))
-	_flash = 0.1
-	sprite.modulate = Color(1.0, 0.35, 0.35)
+	# flash, but not so often that something under steady fire stays white
+	if _flash_rest <= 0.0:
+		_flash = FLASH_TIME
+		_flash_rest = FLASH_GAP
+		sprite.modulate = FLASH_TINT
+	Sfx.at("hit", global_position, 0.7, randf_range(0.9, 1.15))
 	if not is_boss:
 		velocity += Vector3(push.x, 0.0, push.z)
 	if hp <= 0.0:
@@ -124,8 +154,10 @@ func die() -> void:
 	collision_layer = 0
 	collision_mask = 0
 	set_physics_process(false)
+	burst_at(get_parent(), centre(), _def(), height, is_boss)
+	sprite.modulate = FLASH_TINT
 	var tween := create_tween()
-	tween.tween_property(sprite, "scale", Vector3(1.6, 0.0, 1.6), 0.14)
+	tween.tween_property(sprite, "scale", Vector3(1.5, 0.0, 1.5), 0.16)
 	tween.tween_callback(queue_free)
 
 
@@ -144,6 +176,7 @@ func _physics_process(delta: float) -> void:
 	if target == null:
 		return
 	_touch_cd -= delta
+	_flash_rest -= delta
 	if _flash > 0.0:
 		_flash -= delta
 		if _flash <= 0.0:
@@ -196,16 +229,30 @@ func _face_camera_side() -> void:
 	sprite.flip_h = velocity.dot(cam.global_basis.x) < 0.0
 
 
-## The nearest living enemy to `from` within `reach`, or null.
+## The living enemy within `reach` of `from` to aim at, or null: the nearest, except that a
+## boss counts as much closer than it is, so weapons turn on it once it is in reach.
 static func nearest(from: Vector3, reach: float) -> CharacterBody3D:
 	var best: CharacterBody3D = null
-	var best_distance := reach
+	var best_score := INF
 	for enemy: CharacterBody3D in all:
 		var distance: float = from.distance_to(enemy.centre()) - enemy.hit_radius
-		if distance < best_distance:
-			best_distance = distance
+		if distance >= reach:
+			continue
+		var score := distance * (BOSS_PULL if enemy.is_boss else 1.0)
+		if score < best_score:
+			best_score = score
 			best = enemy
 	return best
+
+
+## Enemies within `reach` of `from` in the order to strike them: the boss first, then any.
+static func marks(from: Vector3, reach: float) -> Array:
+	var found := within(from, reach)
+	found.shuffle()
+	for i in found.size():
+		if found[i].is_boss:
+			found.push_front(found.pop_at(i))
+	return found
 
 
 ## Every living enemy whose body is within `reach` of `from`.

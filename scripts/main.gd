@@ -27,6 +27,24 @@ const Net := preload("res://scripts/net.gd")
 const NetSync := preload("res://scripts/netsync.gd")
 const Team := preload("res://scripts/team.gd")
 const Fx := preload("res://scripts/fx.gd")
+const Sfx := preload("res://scripts/sfx.gd")
+const Save := preload("res://scripts/save.gd")
+const Touch := preload("res://scripts/touch.gd")
+const Flags := preload("res://scripts/flags.gd")
+
+## The sizes the screen is laid out for: the window is stretched from the one that fits its
+## shape, so text stays readable on an upright phone. Touch screens get a larger look.
+const SCREEN_WIDE := Vector2i(1280, 720)
+const SCREEN_WIDE_TOUCH := Vector2i(1067, 600)
+const SCREEN_UPRIGHT := Vector2i(580, 1031)
+## What a run scores: this much a kill, a stage cleared, a level gained and a second survived.
+const SCORE_KILL := 10
+const SCORE_STAGE := 1000
+const SCORE_LEVEL := 50
+const SCORE_SECOND := 2
+const BOSS_RED := Color("ff5a4a")
+## On touch screens the 3D view is drawn with about this many pixels at most.
+const TOUCH_PIXELS := 1.6e6
 
 ## Where to begin: "title", "run" (straight into stage 1) or "test" (the test yard).
 @export var start_mode := "title"
@@ -57,12 +75,22 @@ var stage_index := 0
 var stage_title := ""
 ## Guests: the boss as the host last described it ({} = none).
 var boss_state := {}
+var touch: Touch
+
+var _window_key: Array = []
+var _upright := false
+var _touch_seen := false
+var _seen_level := 1
 
 
 func _ready() -> void:
 	# main keeps running while paused so it can unpause; everything else stops
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	Controls.setup()
+	if DisplayServer.get_name() == "headless":
+		Save.path = ""  # the tests leave no saves behind
+	add_child(Sfx.new())
+	Sfx.set_muted(bool(Save.data().get("muted", false)))
 
 	player = Player.new()
 	player.hero = hero
@@ -76,12 +104,16 @@ func _ready() -> void:
 	cam.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(cam)
 	player.camera = cam
+	Fx.rig = cam
+	Sfx.listener = cam
 
 	director = Director.new()
 	director.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(director)
 	director.enemy_killed.connect(_on_enemy_killed)
-	director.boss_spawned.connect(func(boss: Node) -> void: _banner(boss.title, "Beat it and hold the ring"))
+	director.boss_spawned.connect(func(boss: Node) -> void:
+		_banner(boss.title, "Beat it and hold the ring", BOSS_RED)
+		boss_fanfare())
 	director.boss_defeated.connect(_on_boss_defeated)
 
 	hud = Hud.new()
@@ -90,6 +122,13 @@ func _ready() -> void:
 	hud.director = director
 	hud.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(hud)
+
+	var touch_layer := CanvasLayer.new()
+	touch_layer.layer = 10
+	add_child(touch_layer)
+	touch = Touch.new()
+	touch.main = self
+	touch_layer.add_child(touch)
 
 	net = Net.new()
 	add_child(net)
@@ -118,6 +157,7 @@ func _ready() -> void:
 		net.join(code, hero))
 	menus.coop_hero_picked.connect(func(id: String) -> void: net.pick_hero(id))
 	menus.coop_started.connect(func() -> void: net.start_game())
+	menus.sound_toggled.connect(_toggle_sound)
 
 	match start_mode:
 		"run":
@@ -293,10 +333,28 @@ func interact_as(who: Player) -> void:
 
 
 ## A banner on this screen, and on every guest's.
-func _banner(text: String, sub := "") -> void:
-	hud.banner(text, sub)
+func _banner(text: String, sub := "", color := Hud.INK) -> void:
+	hud.banner(text, sub, color)
 	if coop() and net.is_host:
-		sync.send_banner(text, sub)
+		sync.send_banner(text, sub, color)
+
+
+## The noise and jolt of a boss arriving (guests call this when they first see it).
+func boss_fanfare() -> void:
+	Sfx.play("boss")
+	Fx.shake(0.8)
+
+
+## What the hero could do right here with the interact button ("" = nothing).
+func prompt_text() -> String:
+	if altar == null or player.dead or state != "playing":
+		return ""
+	return altar.prompt(player.global_position)
+
+
+## What the run is worth so far. Kills are the team's in co-op.
+func run_score() -> int:
+	return player.kills * SCORE_KILL + stage_index * SCORE_STAGE + (player.level - 1) * SCORE_LEVEL + int(director.time) * SCORE_SECOND
 
 
 func _on_hero_died(who: Player) -> void:
@@ -306,28 +364,58 @@ func _on_hero_died(who: Player) -> void:
 		return
 	var seconds := int(director.time)
 	var lines := [
-		"Reached stage %d: %s" % [stage_index + 1, stage_title],
+		"Stage %d: %s" % [stage_index + 1, stage_title],
 		"Survived %d:%02d   %d kills" % [seconds / 60, seconds % 60, player.kills],
 	]
 	if coop():
 		sync.send_over(lines)
 	else:
-		lines.append("%s got to level %d" % [Db.HEROES[hero]["name"], player.level])
+		lines.append("%s reached level %d" % [Db.HEROES[hero]["name"], player.level])
 	game_over(lines)
 
 
-## Ends the run and shows why. Guests are sent here by the host.
+## Ends the run and shows why. Guests are sent here by the host. The score is worked out on
+## each machine; alone, it is kept if it is the hero's best, and on the web it is posted to
+## the page the game is embedded in (the arcade).
 func game_over(lines: Array) -> void:
 	if state == "dead":
 		return
 	state = "dead"
 	for each: Player in heroes.values():
 		each.active = false
-	await get_tree().create_timer(1.2).timeout
+	var score := run_score()
+	var score_line := ""
+	var best_line := ""
+	if not in_test:
+		score_line = "SCORE  %s" % menus._commas(score)
+		if not coop():
+			var before := int(Save.best(hero).get("score", 0))
+			var better := Save.record(hero, {"score": score, "stage": stage_index + 1, "seconds": int(director.time), "kills": player.kills, "level": player.level})
+			if better:
+				best_line = "NEW BEST WITH %s!" % Db.HEROES[hero]["name"].to_upper()
+			else:
+				best_line = "Best with %s: %s" % [Db.HEROES[hero]["name"], menus._commas(before)]
+		_post_score(score)
+	if not coop():
+		Engine.time_scale = 0.35  # the last moment, slowly
+	await get_tree().create_timer(1.2, true, false, true).timeout
+	Engine.time_scale = 1.0
 	if state != "dead":
 		return
 	_show_menu()
-	menus.game_over(lines, not coop())
+	menus.game_over(lines, not coop(), score_line, best_line)
+
+
+## Tells the page that embeds the game (the Scareathon arcade) how the run ended.
+func _post_score(score: int) -> void:
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("window.parent.postMessage({ type: 'PLAYER_DIED', score: %d }, '*')" % score)
+
+
+func _toggle_sound() -> void:
+	Sfx.set_muted(not Sfx.muted())
+	Save.set_muted(Sfx.muted())
+	menus.relayout()
 
 
 # ---------------------------------------------------------------- co-op
@@ -447,17 +535,74 @@ func _name_tag(who: Player, text: String) -> void:
 # ---------------------------------------------------------------- menus and pausing
 
 func _process(_delta: float) -> void:
+	_watch_window()
+	_play_music()
 	if coop():
 		# a fallen hero watches a teammate until the next stage
 		var watch: Node3D = player
 		if player.dead and not Team.alive().is_empty():
 			watch = Team.alive()[0]
 		cam.target = watch
+	if player.level != _seen_level:
+		if player.level > _seen_level and state in ["playing", "upgrade"]:
+			_celebrate_level()
+		_seen_level = player.level
 	if state == "playing" and not is_guest() and not player.dead and (player.levels_owed > 0 or player.chests_owed > 0):
 		state = "upgrade"
 		_show_menu()
 		var heading := "TREASURE" if player.chests_owed > 0 else "LEVEL UP"
 		menus.upgrades(heading, player.upgrade_options(3), player)
+
+
+## The moment of a level-up: a chime, a wash of gold and a ring around the hero.
+func _celebrate_level() -> void:
+	Sfx.play("levelup")
+	hud.flash(Color("ffd060"), 0.28)
+	if not player.dead:
+		Fx.ring(world, player.global_position, Color("ffd060"), 6.0, 0.5)
+		Fx.puff(world, player.centre(), Color("ffe9a0"), 14, 1.2)
+
+
+## Fits the layout to the window whenever its shape changes (a phone being turned), and when
+## the game first learns it is being played by touch.
+func _watch_window() -> void:
+	var pixels := get_window().size
+	var key := [pixels, Touch.active]
+	if key == _window_key or pixels.x <= 0 or pixels.y <= 0:
+		return
+	var reshaped := (pixels.y > pixels.x) != _upright or Touch.active != _touch_seen
+	_touch_seen = Touch.active
+	_window_key = key
+	_upright = pixels.y > pixels.x
+	var base := SCREEN_UPRIGHT if _upright else (SCREEN_WIDE_TOUCH if Touch.active else SCREEN_WIDE)
+	if get_window().content_scale_size != base:
+		get_window().content_scale_size = base
+	cam.set_upright(_upright)
+	# a phone's screen has more pixels than its chip wants to fill with 3D: draw the world
+	# smaller and stretch it (the menus and HUD stay sharp)
+	var sharp := float(Flags.value("scale3d", "0"))
+	if sharp <= 0.0:
+		sharp = clampf(sqrt(TOUCH_PIXELS / float(pixels.x * pixels.y)), 0.5, 1.0) if Touch.active else 1.0
+	get_viewport().scaling_3d_scale = sharp
+	if Touch.active and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	await get_tree().process_frame  # the viewport takes its new size on the next frame
+	hud.relayout()
+	if reshaped:
+		menus.relayout()
+
+
+## The stage's tune, the boss's while one is alive, and quiet on the game-over screen.
+func _play_music() -> void:
+	var track := "graveyard"
+	if state == "dead":
+		track = ""
+	elif state in ["playing", "upgrade", "paused"]:
+		if not boss_info().is_empty():
+			track = "boss"
+		elif not in_test:
+			track = Db.STAGES[stage_index % Db.STAGES.size()]["music"]
+	Sfx.music(track)
 
 
 func _on_upgrade_chosen(id: String) -> void:
@@ -475,7 +620,9 @@ func _on_upgrade_chosen(id: String) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause"):
+	if event.is_action_pressed("mute"):
+		_toggle_sound()
+	elif event.is_action_pressed("pause"):
 		if state == "playing":
 			state = "paused"
 			_show_menu()
@@ -505,5 +652,5 @@ func _resume() -> void:
 	menus.close()
 	get_tree().paused = false
 	cam.grab_on_click = true
-	if DisplayServer.get_name() != "headless":
+	if DisplayServer.get_name() != "headless" and not Touch.active:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

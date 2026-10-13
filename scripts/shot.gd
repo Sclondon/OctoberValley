@@ -12,6 +12,7 @@ const Db := preload("res://scripts/db.gd")
 const Enemy := preload("res://scripts/enemy.gd")
 const AnimSprite := preload("res://scripts/anim_sprite.gd")
 const Fx := preload("res://scripts/fx.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 const Team := preload("res://scripts/team.gd")
 
 const GROUP := "shots"
@@ -170,6 +171,7 @@ func _become_pool() -> void:
 	for child in get_children():
 		child.queue_free()
 	add_child(pool_sprite(pool_sheet, net_size))
+	Sfx.for_sheet(pool_sheet, global_position)
 
 
 ## A pool lying flat on the ground (guests draw the same one).

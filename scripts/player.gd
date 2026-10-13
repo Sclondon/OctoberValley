@@ -12,6 +12,7 @@ const Db := preload("res://scripts/db.gd")
 const Weapon := preload("res://scripts/weapon.gd")
 const Fx := preload("res://scripts/fx.gd")
 const Team := preload("res://scripts/team.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 signal died
 signal inventory_changed
@@ -33,6 +34,8 @@ const TURN_SPEED := 14.0
 const KILL_HEIGHT := -30.0
 ## Seconds of safety after a hit, so a crowd cannot land every blow at once.
 const HURT_SAFETY := 0.5
+## A level-up gives back this share of full health: the reward for fighting, not hiding.
+const LEVEL_HEAL := 0.1
 
 ## Passives and hero perks add to these.
 const STAT_DEFAULTS := {
@@ -78,6 +81,7 @@ var _jump_buffer := 0.0
 var _air_jumps_left := 0
 var _facing := 0.0
 var _safe := 0.0
+var _fall_speed := 0.0
 
 
 func _ready() -> void:
@@ -206,6 +210,7 @@ func gain_xp(amount: float) -> void:
 		xp -= xp_needed()
 		level += 1
 		levels_owed += 1
+		heal(max_hp() * LEVEL_HEAL)
 
 
 func heal(amount: float) -> void:
@@ -231,6 +236,8 @@ func hurt(amount: float, from: Vector3) -> void:
 		hp = 0.0
 		dead = true
 		model.visible = false
+		Fx.puff(world, centre(), Color("ffd9a0"), 26, 1.5)
+		Sfx.at("death", global_position)
 		died.emit()
 
 
@@ -355,6 +362,7 @@ func _move(delta: float) -> void:
 	if _jump_buffer > 0.0 and (_coyote > 0.0 or _air_jumps_left > 0):
 		if _coyote <= 0.0:
 			_air_jumps_left -= 1
+		Sfx.at("jump" if _coyote > 0.0 else "jump2", global_position)
 		velocity.y = JUMP_VELOCITY
 		_jump_buffer = 0.0
 		_coyote = 0.0
@@ -365,7 +373,12 @@ func _move(delta: float) -> void:
 	var flat := Vector3(velocity.x, 0.0, velocity.z).move_toward(wish * top_speed, accel * delta)
 	velocity.x = flat.x
 	velocity.z = flat.z
+	if not grounded:
+		_fall_speed = -velocity.y
 	move_and_slide()
+	if is_on_floor() and not grounded and _fall_speed > 9.0 and playing:
+		Fx.puff(world, global_position + Vector3.UP * 0.1, Color("b8a8d0"), 6, 0.6)
+	_fall_speed = 0.0 if is_on_floor() else _fall_speed
 
 	if global_position.y < KILL_HEIGHT:
 		respawn(_start)

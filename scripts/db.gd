@@ -159,25 +159,25 @@ const HERO_ORDER: Array[String] = ["joe", "matt", "alex", "jon"]
 # ---------------------------------------------------------------- enemies
 # move: walk, hop or fly. cost: director credits. hp and damage are at difficulty 1.
 const ENEMIES := {
-	"zombie": {"sheet": "zombie", "height": 1.9, "radius": 0.4, "speed": 3.2, "move": "walk", "hp": 15.0, "damage": 11.0, "xp": 1, "cost": 1.0},
-	"pumpkin": {"sheet": "pumpkin", "height": 1.0, "radius": 0.45, "speed": 4.6, "move": "hop", "hp": 24.0, "damage": 13.0, "xp": 2, "cost": 1.5},
-	"skull": {"sheet": "skull", "height": 1.1, "radius": 0.45, "speed": 5.8, "move": "fly", "hp": 10.0, "damage": 8.0, "xp": 1, "cost": 1.5},
-	"ghost": {"sheet": "ghost", "height": 2.3, "radius": 0.45, "speed": 3.4, "move": "fly", "hp": 36.0, "damage": 14.0, "xp": 3, "cost": 3.0},
-	"scarecrow": {"sheet": "scarecrow", "height": 3.0, "radius": 0.5, "speed": 3.2, "move": "walk", "hp": 90.0, "damage": 19.0, "xp": 6, "cost": 6.0},
-	"werewolf": {"sheet": "werewolf", "height": 1.7, "radius": 0.6, "speed": 6.6, "move": "walk", "hp": 68.0, "damage": 19.0, "xp": 6, "cost": 6.0},
-	"shadowbeast": {"sheet": "shadowbeast", "height": 2.2, "radius": 0.7, "speed": 4.8, "move": "walk", "hp": 135.0, "damage": 24.0, "xp": 10, "cost": 10.0},
-	"swampthing": {"sheet": "swampthing", "height": 3.6, "radius": 0.8, "speed": 3.4, "move": "walk", "hp": 240.0, "damage": 30.0, "xp": 16, "cost": 16.0},
+	"zombie": {"puff": "5ac8b0", "sheet": "zombie", "height": 1.9, "radius": 0.4, "speed": 3.2, "move": "walk", "hp": 15.0, "damage": 11.0, "xp": 1, "cost": 1.0},
+	"pumpkin": {"puff": "f08a2a", "sheet": "pumpkin", "height": 1.0, "radius": 0.45, "speed": 4.6, "move": "hop", "hp": 24.0, "damage": 13.0, "xp": 2, "cost": 1.5},
+	"skull": {"puff": "e8e0d0", "sheet": "skull", "height": 1.1, "radius": 0.45, "speed": 5.8, "move": "fly", "hp": 10.0, "damage": 8.0, "xp": 1, "cost": 1.5},
+	"ghost": {"puff": "c0d8ff", "sheet": "ghost", "height": 2.3, "radius": 0.45, "speed": 3.4, "move": "fly", "hp": 36.0, "damage": 14.0, "xp": 3, "cost": 3.0},
+	"scarecrow": {"puff": "d8a850", "sheet": "scarecrow", "height": 3.0, "radius": 0.5, "speed": 3.2, "move": "walk", "hp": 90.0, "damage": 19.0, "xp": 6, "cost": 6.0},
+	"werewolf": {"puff": "a08878", "sheet": "werewolf", "height": 1.7, "radius": 0.6, "speed": 6.6, "move": "walk", "hp": 68.0, "damage": 19.0, "xp": 6, "cost": 6.0},
+	"shadowbeast": {"puff": "7a50b0", "sheet": "shadowbeast", "height": 2.2, "radius": 0.7, "speed": 4.8, "move": "walk", "hp": 135.0, "damage": 24.0, "xp": 10, "cost": 10.0},
+	"swampthing": {"puff": "60b060", "sheet": "swampthing", "height": 3.6, "radius": 0.8, "speed": 3.4, "move": "walk", "hp": 240.0, "damage": 30.0, "xp": 16, "cost": 16.0},
 }
 
 # A boss is a giant version of an enemy with its own attacks (see boss.gd):
 #   slam (a shockwave to jump over), volley (a fan of shots), summon (a pack), charge (a dash).
 const BOSSES := {
 	"scarecrow_king": {"name": "The Harvest King", "enemy": "scarecrow", "height": 7.0, "radius": 1.3, "speed": 4.0,
-		"hp": 2600.0, "damage": 22.0, "attacks": ["volley", "summon", "slam"], "shot": "fireball", "minion": "pumpkin"},
+		"hp": 1500.0, "damage": 19.0, "attacks": ["volley", "summon", "slam"], "shot": "fireball", "minion": "pumpkin"},
 	"alpha_wolf": {"name": "The Alpha", "enemy": "werewolf", "height": 4.6, "radius": 1.6, "speed": 6.0,
-		"hp": 4200.0, "damage": 28.0, "attacks": ["charge", "charge", "slam", "summon"], "shot": "fireball", "minion": "werewolf"},
+		"hp": 2800.0, "damage": 28.0, "attacks": ["charge", "charge", "slam", "summon"], "shot": "fireball", "minion": "werewolf"},
 	"swamp_lord": {"name": "Lord Of The Mire", "enemy": "swampthing", "height": 8.0, "radius": 1.8, "speed": 3.6,
-		"hp": 6000.0, "damage": 34.0, "attacks": ["slam", "volley", "summon", "slam"], "shot": "wisp", "minion": "ghost"},
+		"hp": 4000.0, "damage": 34.0, "attacks": ["slam", "volley", "summon", "slam"], "shot": "wisp", "minion": "ghost"},
 }
 
 # Candy is the experience pickup: the biggest sprite the value covers is used.
@@ -188,21 +188,21 @@ const CANDY := [["candy_bubblegum", 20], ["candy_bar", 5], ["candy_corn", 1]]
 # After the last stage the run loops back to the first, harder.
 const STAGES := [
 	{
-		"name": "The Graveyard", "boss": "scarecrow_king",
+		"name": "The Graveyard", "boss": "scarecrow_king", "music": "graveyard",
 		"roster": [["zombie", 0.0], ["skull", 25.0], ["ghost", 70.0], ["scarecrow", 130.0]],
 		"props": [["grave_1_small", 1.6, 5], ["grave_2", 1.6, 5], ["tree", 9.0, 3], ["tree_3", 9.0, 2], ["mausoleum", 7.0, 1], ["street_lamp", 4.4, 2]],
 		"ground": "2a2438", "rock": "4a4466", "ramp": "6a4a78", "wall": "1c1830", "line": "b08ad0",
 		"sky_top": "120c2e", "sky_horizon": "9a4a8a", "ambient": "a098c8", "fog": "4a3a66", "sun": "d8c8ff",
 	},
 	{
-		"name": "The Pumpkin Patch", "boss": "alpha_wolf",
+		"name": "The Pumpkin Patch", "boss": "alpha_wolf", "music": "patch",
 		"roster": [["pumpkin", 0.0], ["zombie", 0.0], ["skull", 30.0], ["werewolf", 70.0], ["scarecrow", 110.0]],
 		"props": [["tree_2", 9.0, 3], ["tree_4", 9.0, 3], ["tree_owl", 9.0, 1], ["tree_5", 9.0, 2], ["grave_2", 1.6, 1]],
 		"ground": "3a2a1e", "rock": "6a4a30", "ramp": "c8541c", "wall": "24180f", "line": "f0a050",
 		"sky_top": "241038", "sky_horizon": "e06a28", "ambient": "c8a890", "fog": "7a4030", "sun": "ffc890",
 	},
 	{
-		"name": "The Black Mire", "boss": "swamp_lord",
+		"name": "The Black Mire", "boss": "swamp_lord", "music": "mire",
 		"roster": [["ghost", 0.0], ["skull", 0.0], ["shadowbeast", 40.0], ["werewolf", 80.0], ["swampthing", 120.0]],
 		"props": [["tree_6", 9.0, 4], ["tree_5", 9.0, 3], ["tree", 9.0, 2], ["grave_1_small", 1.6, 2], ["street_lamp", 4.4, 1]],
 		"ground": "14261e", "rock": "2c4a3a", "ramp": "2c866b", "wall": "0c1612", "line": "70e090",

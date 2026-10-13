@@ -5,13 +5,15 @@ extends Node3D
 ## stage.
 
 const Team := preload("res://scripts/team.gd")
+const Sfx := preload("res://scripts/sfx.gd")
+const Fx := preload("res://scripts/fx.gd")
 
 signal summoned
 signal entered
 ## The boss is dead and the charge is full: the portal is open.
 signal opened
 
-const REACH := 5.0
+const REACH := 6.0
 ## Seconds of a hero standing inside CHARGE_RADIUS to fill the charge.
 const CHARGE_TIME := 75.0
 const CHARGE_RADIUS := 24.0
@@ -28,6 +30,8 @@ var simulate := true
 var _beam: StandardMaterial3D
 var _ring: MeshInstance3D
 var _zone: MeshInstance3D
+## A disc on the ground that grows with the charge.
+var _fill: MeshInstance3D
 
 
 func _ready() -> void:
@@ -83,11 +87,33 @@ func _ready() -> void:
 	_zone.scale.y = 0.4
 	_zone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_zone)
+	var menhir := StandardMaterial3D.new()
+	menhir.albedo_color = Color("7a7490")
+	menhir.roughness = 1.0
+	_build_stones(menhir)
+	var fill_material := StandardMaterial3D.new()
+	fill_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fill_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fill_material.albedo_color = Color(1.0, 0.35, 0.25, 0.13)
+	var fill_mesh := CylinderMesh.new()
+	fill_mesh.top_radius = 1.0
+	fill_mesh.bottom_radius = 1.0
+	fill_mesh.height = 0.02
+	fill_mesh.radial_segments = 48
+	fill_mesh.material = fill_material
+	_fill = MeshInstance3D.new()
+	_fill.mesh = fill_mesh
+	_fill.position.y = 0.06
+	_fill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_fill.visible = false
+	add_child(_fill)
 	_show_state()
 
 
 func _process(delta: float) -> void:
 	_ring.rotation.y += delta * (3.0 if state == "portal" else 0.8)
+	_fill.visible = state == "boss" and charge > 0.0 and charge < 1.0
+	_fill.scale = Vector3(CHARGE_RADIUS * charge, 1.0, CHARGE_RADIUS * charge)
 	if not simulate or state != "boss":
 		return
 	if charge < 1.0 and _held():
@@ -126,10 +152,6 @@ func interact() -> void:
 		entered.emit()
 
 
-func set_state(new_state: String) -> void:
-	if new_state != state:
-		state = new_state
-		_show_state()
 
 
 func _show_state() -> void:
@@ -137,3 +159,42 @@ func _show_state() -> void:
 	_beam.albedo_color = Color(color, 0.55)
 	_ring.visible = state != "boss"
 	_zone.visible = state == "boss"
+
+
+func set_state(new_state: String) -> void:
+	if new_state == state:
+		return
+	state = new_state
+	_show_state()
+	if state == "boss":
+		Sfx.at("altar", global_position)
+		Fx.ring(get_parent(), global_position, COLORS["boss"], CHARGE_RADIUS, 0.9)
+	elif state == "portal":
+		Sfx.play("portal")
+		Fx.ring(get_parent(), global_position, COLORS["portal"], CHARGE_RADIUS, 1.1)
+
+
+## A ring of low standing stones (low, so the camera sees over them), so the altar is a place
+## and not a disc. Heroes bump into them;
+## enemies walk through, like the other scenery.
+func _build_stones(stone: StandardMaterial3D) -> void:
+	for i in 7:
+		var angle := TAU * i / 7.0 + 0.3
+		var tall := 1.5 + 0.9 * absf(sin(i * 2.3))
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(0.9, tall, 0.6)
+		mesh.material = stone
+		var body := StaticBody3D.new()
+		body.collision_layer = 8
+		body.collision_mask = 0
+		body.position = Vector3(cos(angle), 0.0, sin(angle)) * 5.6 + Vector3.UP * (tall * 0.5 - 0.1)
+		body.rotation = Vector3(0.0, -angle + 0.3 * sin(i * 5.1), 0.05 * cos(i * 3.7))
+		var visual := MeshInstance3D.new()
+		visual.mesh = mesh
+		body.add_child(visual)
+		var shape := BoxShape3D.new()
+		shape.size = mesh.size
+		var collider := CollisionShape3D.new()
+		collider.shape = shape
+		body.add_child(collider)
+		add_child(body)

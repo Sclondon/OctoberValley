@@ -15,6 +15,7 @@ const LOOK := {"sky_top": "120c2e", "sky_horizon": "d9632a", "ambient": "a098c8"
 
 
 func _ready() -> void:
+	greybox = true
 	build_sky(LOOK)
 	yard(GROUND, WALL, 10.0)
 	_build_hill()
